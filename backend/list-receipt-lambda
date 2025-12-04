@@ -1,1 +1,184 @@
 
+import json
+import boto3
+from decimal import Decimal
+from boto3.dynamodb.conditions import Key
+
+dynamodb = boto3.resource("dynamodb")
+TABLE_NAME = "receipts"
+USER_INDEX = "UserIndex"
+table = dynamodb.Table(TABLE_NAME)
+
+
+def _convert_decimals(obj):
+    if isinstance(obj, list):
+        return [_convert_decimals(v) for v in obj]
+    if isinstance(obj, dict):
+        return {k: _convert_decimals(v) for k, v in obj.items()}
+    if isinstance(obj, Decimal):
+        return float(obj)
+    return obj
+
+
+def _extract_user_id(event):
+    qs = event.get("queryStringParameters") or {}
+    if "user_id" in qs and qs["user_id"]:
+        return qs["user_id"]
+
+    body = event.get("body")
+    if body:
+        try:
+            if isinstance(body, str):
+                body = json.loads(body)
+            if "user_id" in body:
+                return body["user_id"]
+        except Exception:
+            pass
+
+    # default
+    return "demo-user"
+
+
+def _extract_category_filter(event):
+    qs = event.get("queryStringParameters") or {}
+    cat = qs.get("category")
+    if cat:
+        return cat.strip()
+    return None
+
+
+def _infer_category_from_vendor(vendor: str) -> str:
+    """
+    Very simple heuristic categorisation from vendor name.
+    This lets us treat older records (category='other') as online/shopping/etc
+    based on the vendor string.
+    """
+    name = (vendor or "").lower()
+
+    # Online / e-commerce
+    if any(x in name for x in ["Amazon", "Flipkart", "Myntra", "Ajio", "Nykaa", "Meesho", "Alibaba"]):
+        return "Online_shopping"
+
+    # Groceries
+    if any(x in name for x in ["D-Mart", "supermarket", "grocery", "fresh", "bazaar", "Reliance fresh", "more", "Vishal Mart"]):
+        return "groceries"
+
+    # Dining / food
+    if any(x in name for x in ["burger", "pizza", "cafe", "restaurant", "hotel", "burrito"]):
+        return "dining"
+
+    # Shopping / fashion
+    if any(x in name for x in ["zara", "lifestyle", "nike", "adidas", "mall", "Cloth", "Shirt", "t-shirt", "Pant", "trousers", "Lingerie"]):
+        return "shopping"
+
+    # Travel / transport
+    if any(x in name for x in ["Uber", "OLA", "Indigo", "Airlines", "Railway", "Bus", "Rapido", "Namma Yatri"]):
+        return "travel"
+
+    # Banking
+    if any(x in name for x in ["HDFC", "ICICI", "SBI", "Bank", "ATM", "UPI", "Netbanking", "Card", "Paytm", "Phonepe", "Googlepay", "Gpay"]):
+        return "banking"
+
+    # Electricity / water / Mobile / Internet
+    if any(x in name for x in ["Electricity", "Water", "Borewell", "Gas", "gas bill", "DTH", "Broadband", "Internet", "internet bill", "Electricity Bill", "Water Bill", "Airtel", "Vi", "Jio", "BSNL", "Postpaid"]):
+        return "electricity" , "Water" , "Gas", "DTH", "Broadband", "Internet", "Mobile"
+
+    # Entertainment
+    if any(x in name for x in ["Movie", "Netflix", "theatre", "Amazon Prime", "Hotstar", "Zee5", "Spotify", "Youtube"]):
+        return "entertainment"
+
+    # Insurance
+    if any(x in name for x in ["Insurance", "Life Insurance", "Health Insurance", "Vehicle Insurance", "Fire Insurance", "Term Insurance", "Travel Insurance", "Home Insurance", "Health", "Life", "Vehicle", "Fire", "Term", "Travel", "Home"]):
+        return "insurance"
+
+    # Fuel
+    if any(x in name for x in ["Fuel", "Petrol", "Diesel", "CNG", "Gas", "gas bill", "E20 petrol"]):
+        return "fuel"
+    
+    # Health
+    if any(x in name for x in ["Health", "Pharmacy", "Doctor", "Hospital", "Medicine", "Clinic", "Ambulance"]):
+        return "health"
+
+
+    return "other"
+
+
+def _effective_category(item: dict) -> str:
+    """
+    Decide which category to use for filtering/returning:
+    - If an explicit category is stored and not 'other', use it.
+    - Otherwise infer it from the vendor name.
+    """
+    stored = (item.get("category") or "").lower()
+    if stored and stored != "other":
+        return stored
+
+    vendor = item.get("vendor") or ""
+    return _infer_category_from_vendor(vendor)
+
+
+def _shape_receipt(item: dict) -> dict:
+    """
+    Take the raw DynamoDB item and return a compact dict for the client.
+    We expose the 'effective' category, not just the raw stored one.
+    """
+    return {
+        "receipt_id": item.get("receipt_id"),
+        "vendor": item.get("vendor"),
+        "invoice_date": item.get("invoice_date"),
+        "total": item.get("total"),
+        "category": _effective_category(item),
+        "receipt_type": item.get("receipt_type"),
+        "processed_at": item.get("processed_at"),
+        # we intentionally DO NOT expose raw_resp_json
+    }
+
+
+def lambda_handler(event, context):
+    print("DEBUG event:", json.dumps(event)[:3000])
+
+    user_id = _extract_user_id(event)
+    category_filter = _extract_category_filter(event)
+
+    print(f"Listing receipts for user_id={user_id}, category={category_filter}")
+
+    try:
+        resp = table.query(
+            IndexName=USER_INDEX,
+            KeyConditionExpression=Key("user_id").eq(user_id),
+            ScanIndexForward=False,
+            Limit=50,
+        )
+    except Exception as e:
+        print("DynamoDB query error:", str(e))
+        return {
+            "statusCode": 500,
+            "body": json.dumps(
+                {"error": "dynamodb_query_failed", "detail": str(e)}
+            ),
+        }
+
+    items = resp.get("Items", []) or []
+
+    # Category filter in-memory (using effective category)
+    if category_filter:
+        cf = category_filter.lower()
+        items = [it for it in items if _effective_category(it) == cf]
+
+    # Shape & convert decimals
+    shaped = [_shape_receipt(it) for it in items]
+    shaped = _convert_decimals(shaped)
+
+    body = {
+        "user_id": user_id,
+        "count": len(shaped),
+        "receipts": shaped,
+    }
+
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "application/json",
+        },
+        "body": json.dumps(body),
+    }
