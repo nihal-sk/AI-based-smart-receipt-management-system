@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Google Wallet – Receipts</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #020617;
+      color: #e5e7eb;
+    }
+    h1 {
+      margin: 24px;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: #f9fafb;
+    }
+    .card {
+      margin: 0 24px 24px;
+      padding: 18px 20px 20px;
+      border-radius: 16px;
+      background: #020617;
+      border: 1px solid #1f2937;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.8);
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-end;
+      margin-bottom: 10px;
+    }
+    label {
+      font-size: 12px;
+      color: #9ca3af;
+      display: block;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    input,
+    select {
+      width: 220px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+    }
+    input::placeholder {
+      color: #6b7280;
+    }
+    input:focus,
+    select:focus {
+      border-color: #22c55e;
+      box-shadow: 0 0 0 1px #22c55e;
+      background: #020617;
+    }
+    button {
+      cursor: pointer;
+      padding: 9px 18px;
+      border-radius: 999px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      background: #22c55e;
+      color: #022c22;
+      box-shadow: 0 12px 30px rgba(34, 197, 94, 0.35);
+      transition: background 0.1s ease, transform 0.08s ease, box-shadow 0.1s ease;
+      white-space: nowrap;
+    }
+    button:hover {
+      background: #16a34a;
+      transform: translateY(-1px);
+      box-shadow: 0 16px 40px rgba(34, 197, 94, 0.45);
+    }
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 8px 22px rgba(34, 197, 94, 0.35);
+    }
+    #status {
+      margin-top: 4px;
+      font-size: 13px;
+      color: #9ca3af;
+    }
+    #tableContainer {
+      margin-top: 10px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    thead {
+      background: #020617;
+    }
+    th,
+    td {
+      padding: 9px 10px;
+      text-align: left;
+      border-bottom: 1px solid #111827;
+      white-space: nowrap;
+    }
+    th {
+      font-weight: 500;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 11px;
+    }
+    tbody tr:hover {
+      background: #030712;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 9px 2px;
+      border-radius: 999px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .pill.gray {
+      background: #020617;
+      border: 1px solid #111827;
+      color: #9ca3af;
+    }
+    .amount {
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+      color: #e5e7eb;
+    }
+
+    /* Details overlay */
+    #detailsPanel {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.9);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    #detailsCard {
+      width: 90%;
+      max-width: 760px;
+      max-height: 82vh;
+      background: #020617;
+      border-radius: 18px;
+      border: 1px solid #1f2937;
+      padding: 18px 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+    }
+    #detailsHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+    #detailsHeader h2 {
+      margin: 0;
+      font-size: 18px;
+      color: #e5e7eb;
+    }
+    #closeDetailsBtn {
+      background: #111827;
+      color: #e5e7eb;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: none;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #closeDetailsBtn:hover {
+      background: #1f2937;
+    }
+    #detailsSummary {
+      font-size: 13px;
+      color: #9ca3af;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 6px 14px;
+    }
+    #detailsSummary div strong {
+      color: #e5e7eb;
+    }
+    #detailsItems {
+      font-size: 13px;
+      color: #e5e7eb;
+      border-top: 1px solid #111827;
+      padding-top: 8px;
+      max-height: 150px;
+      overflow: auto;
+    }
+    #detailsItems-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    #detailsRawLabel {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+    #detailsRaw {
+      margin: 0;
+      background: #020617;
+      border-radius: 8px;
+      border: 1px solid #111827;
+      padding: 10px;
+      font-size: 11px;
+      max-height: 210px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    @media (max-width: 640px) {
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      input,
+      select {
+        width: 100%;
+      }
+      button {
+        width: 100%;
+      }
+      .card {
+        margin: 0 12px 18px;
+        padding: 14px 14px 16px;
+      }
+      h1 {
+        margin: 18px 12px;
+        font-size: 26px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Google Wallet – Receipts</h1>
+
+  <div class="card">
+    <div class="controls">
+      <div>
+        <label for="userId">User ID</label>
+        <input id="userId" type="text" value="demo-user" />
+      </div>
+      <div>
+        <label for="category">Category</label>
+        <select id="category">
+          <option value="">All</option>
+          <option value="shopping">Shopping</option>
+          <option value="groceries">Groceries</option>
+          <option value="dining">Dining</option>
+          <option value="travel">Travel</option>
+          <option value="banking">Banking</option>
+          <option value="electricity">Electricity</option>
+          <option value="entertainment">Entertainment</option>
+          <option value="insurance">Insurance</option>
+          <option value="fuel">Fuel</option>
+          <option value="health">Health</option>          
+          <option value="online">Online orders</option>
+          <option value="other" selected>Other</option>
+        </select>
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <button id="loadBtn">Load receipts</button>
+      </div>
+    </div>
+
+    <div id="status"></div>
+    <div id="tableContainer"></div>
+  </div>
+
+  <!-- Details overlay -->
+  <div id="detailsPanel">
+    <div id="detailsCard">
+      <div id="detailsHeader">
+        <h2>Receipt details</h2>
+        <button id="closeDetailsBtn">Close</button>
+      </div>
+      <div id="detailsSummary"></div>
+      <div id="detailsItems"></div>
+      <div id="detailsRawLabel">Raw JSON (debug)</div>
+      <pre id="detailsRaw"></pre>
+    </div>
+  </div>
+
+  <script>
+    // 🔧 IMPORTANT: Put your real API base URL here (no trailing slash)
+    // Example: const API_BASE_URL = "https://95n8xk8hze.execute-api.ap-south-1.amazonaws.com";
+    const API_BASE_URL = "https://8kn6kq367j.execute-api.ap-south-1.amazonaws.com";
+
+    const RECEIPTS_PATH = "/receipts";
+
+    const userInput = document.getElementById("userId");
+    const categorySelect = document.getElementById("category");
+    const statusEl = document.getElementById("status");
+    const tableContainer = document.getElementById("tableContainer");
+    const loadBtn = document.getElementById("loadBtn");
+
+    const detailsPanel = document.getElementById("detailsPanel");
+    const detailsSummary = document.getElementById("detailsSummary");
+    const detailsItems = document.getElementById("detailsItems");
+    const detailsRaw = document.getElementById("detailsRaw");
+    const closeDetailsBtn = document.getElementById("closeDetailsBtn");
+
+    let lastReceipts = [];
+
+    function setStatus(msg, isError = false) {
+      statusEl.textContent = msg;
+      statusEl.style.color = isError ? "#f97373" : "#9ca3af";
+    }
+
+    function formatAmount(val) {
+      if (val === undefined || val === null || val === "") return "";
+      const n = Number(val);
+      if (Number.isNaN(n)) return val;
+      return "₹" + n.toFixed(2);
+    }
+
+    async function loadReceipts() {
+      const userId = userInput.value.trim();
+      const category = categorySelect.value;
+
+      if (!userId) {
+        setStatus("Please enter a user ID.", true);
+        return;
+      }
+
+      setStatus("Loading receipts...", false);
+      tableContainer.innerHTML = "";
+
+      try {
+        const url = new URL(API_BASE_URL + RECEIPTS_PATH);
+        url.searchParams.set("user_id", userId);
+        if (category) url.searchParams.set("category", category);
+
+        const res = await fetch(url.toString(), { method: "GET" });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`API ${res.status}: ${text}`);
+        }
+
+        const data = await res.json();
+        const receipts = data.receipts || [];
+
+        lastReceipts = receipts;
+
+        setStatus(
+          receipts.length
+            ? `Loaded ${receipts.length} receipts for "${userId}".`
+            : `No receipts found for "${userId}" with current filter.`
+        );
+
+        renderTable(receipts);
+      } catch (err) {
+        console.error(err);
+        setStatus("Request failed: " + err.message, true);
+      }
+    }
+
+    function renderTable(receipts) {
+      if (!receipts.length) {
+        tableContainer.innerHTML = "";
+        return;
+      }
+
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Vendor</th>
+              <th>Category</th>
+              <th>Invoice #</th>
+              <th class="amount">Total</th>
+              <th>Receipt ID</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      receipts.forEach((r, idx) => {
+        const date = r.invoice_date || r.date || "-";
+        const vendor = r.vendor || r.store_name || "-";
+        const cat = (r.category || "other").toUpperCase();
+        const invoiceNo = r.invoice_number || r.order_id || "-";
+        const total = r.total || r.amount;
+        const id = r.receipt_id || r.id || "-";
+
+        html += `
+          <tr class="receipt-row" data-index="${idx}" style="cursor:pointer;">
+            <td>${date}</td>
+            <td>${vendor}</td>
+            <td><span class="pill gray">${cat}</span></td>
+            <td>${invoiceNo}</td>
+            <td class="amount">${formatAmount(total)}</td>
+            <td><code>${id}</code></td>
+          </tr>
+        `;
+      });
+
+      html += "</tbody></table>";
+      tableContainer.innerHTML = html;
+
+      document.querySelectorAll(".receipt-row").forEach((row) => {
+        row.addEventListener("click", () => {
+          const idx = Number(row.dataset.index);
+          showDetails(idx);
+        });
+      });
+    }
+
+    function showDetails(index) {
+      const r = lastReceipts[index];
+      if (!r) return;
+
+      const date = r.invoice_date || r.date || "-";
+      const vendor = r.vendor || r.store_name || "-";
+      const cat = r.category || "other";
+      const invoiceNo = r.invoice_number || r.order_id || "-";
+      const total = r.total || r.amount;
+      const id = r.receipt_id || r.id || "-";
+
+      detailsSummary.innerHTML = `
+        <div><strong>Vendor:</strong> ${vendor}</div>
+        <div><strong>Date:</strong> ${date}</div>
+        <div><strong>Category:</strong> ${cat}</div>
+        <div><strong>Invoice #:</strong> ${invoiceNo}</div>
+        <div><strong>Total:</strong> ${formatAmount(total)}</div>
+        <div><strong>Receipt ID:</strong> <code>${id}</code></div>
+      `;
+
+      const items = r.items || [];
+      if (items.length) {
+        let itemsHtml = `<div id="detailsItems-title">Line items</div>`;
+        items.forEach((it, i) => {
+          const label =
+            it.Description ||
+            it.ITEM ||
+            it.NAME ||
+            it["Product Code"] ||
+            it["ProductName"] ||
+            `Item ${i + 1}`;
+          const amount = it.Total || it.Amount || it.Price || "";
+          itemsHtml += `
+            <div style="margin-top:4px;">
+              • ${label}
+              ${
+                amount
+                  ? ` – <span class="amount">${formatAmount(amount)}</span>`
+                  : ""
+              }
+            </div>
+          `;
+        });
+        detailsItems.innerHTML = itemsHtml;
+      } else {
+        detailsItems.innerHTML =
+          '<em style="color:#9ca3af;">No structured line items available for this receipt.</em>';
+      }
+
+      detailsRaw.textContent = JSON.stringify(r, null, 2);
+
+      detailsPanel.style.display = "flex";
+    }
+
+    closeDetailsBtn.addEventListener("click", () => {
+      detailsPanel.style.display = "none";
+    });
+
+    detailsPanel.addEventListener("click", (e) => {
+      if (e.target === detailsPanel) {
+        detailsPanel.style.display = "none";
+      }
+    });
+
+    loadBtn.addEventListener("click", loadReceipts);
+  </script>
+</body>
+</html>
