@@ -1,4 +1,4 @@
-# Project Rasheed - AI-based Smart Receipt Management System
+# Project ReciSight - AI-based Smart Receipt Management System
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![AWS](https://img.shields.io/badge/Platform-AWS-orange.svg)](https://aws.amazon.com/)
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](#)
@@ -26,7 +26,7 @@ Table of Contents
 
 Overview
 --------
-Rasheed accepts receipt images or PDFs, runs OCR/field-extraction (Textract AnalyzeExpense), normalizes extracted fields (vendor/date/total/line-items), and stores the data in DynamoDB table. A simple API (API Gateway + Lambda) allows fetching receipts, and a static frontend renders them. The system is intentionally fully serverless, zero-maintenance, and AWS Free-Tier friendly.
+ReciSight accepts receipt images or PDFs, runs OCR/field-extraction (Textract AnalyzeExpense), normalizes extracted fields (vendor/date/total/line-items), and stores the data in DynamoDB table. A simple API (API Gateway + Lambda) allows fetching receipts, and a static frontend renders them. The system is intentionally fully serverless, zero-maintenance, and AWS Free-Tier friendly.
 
 Key Features
 ------------
@@ -68,7 +68,7 @@ Quick Demo
 Repo Layout
 ----------
 ```
-rasheed/
+ReciSight/
 ├── backend/
 │   ├── ingest-receipt-lambda/
 │   │   └── lambda_function.py      # S3 → Textract → DynamoDB pipeline
